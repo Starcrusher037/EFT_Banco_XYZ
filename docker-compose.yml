@@ -1,5 +1,22 @@
 services:
   # -------------------------------------------------------------
+  # 0. BASE DE DATOS MYSQL (Persistencia Relacional Bancaria y Batch)
+  # -------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_DATABASE=bancoxyz
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=admin
+    restart: unless-stopped
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
   # 1. BROKER DE MENSAJERIA ACTIVEMQ (Persistencia de eventos JMS)
   # -------------------------------------------------------------
   activemq:
@@ -61,29 +78,7 @@ services:
       - banco-net
 
   # -------------------------------------------------------------
-  # 5. CORE SERVICE (Banco XYZ Resource Server protegido)
-  # -------------------------------------------------------------
-  core-service:
-    build: ./core-service
-    container_name: core-service
-    ports:
-      - "8081:8081"
-    depends_on:
-      - config-server
-      - discovery-server
-      - auth-server
-      - activemq
-    environment:
-      - SERVER_PORT=8081
-      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
-      - SPRING_ACTIVEMQ_BROKER_URL=tcp://activemq:61616
-      - AUTH_SERVER_JWKS_URI=http://auth-server:8080/.well-known/jwks.json
-    networks:
-      - banco-net
-
-  # -------------------------------------------------------------
-  # 6. MS-MENSAJERIA (Consumidor asincrono @JmsListener)
+  # 5. MS-MENSAJERIA (Consumidor asincrono @JmsListener)
   # -------------------------------------------------------------
   ms-mensajeria:
     build: ./ms-mensajeria
@@ -99,6 +94,153 @@ services:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
       - SPRING_ACTIVEMQ_BROKER_URL=tcp://activemq:61616
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 6. BFF CAJERO AUTOMATICO (ATM - Transacciones y Giros Seguros)
+  # -------------------------------------------------------------
+  bff-cajero:
+    build: ./bff-cajero
+    container_name: bff-cajero
+    ports:
+      - "8083:8083"
+    depends_on:
+      - config-server
+      - discovery-server
+      - ms-cuentas
+      - ms-pagos
+    environment:
+      - SERVER_PORT=8083
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - BANK_CORE_URL=http://ms-cuentas:8091/api/core
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 7. BFF MOVIL (App Bancaria Movil - Payloads Ligeros y Resiliencia)
+  # -------------------------------------------------------------
+  bff-movil:
+    build: ./bff-movil
+    container_name: bff-movil
+    ports:
+      - "8084:8084"
+    depends_on:
+      - config-server
+      - discovery-server
+      - ms-cuentas
+      - ms-pagos
+    environment:
+      - SERVER_PORT=8084
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - BANK_CORE_URL=http://ms-cuentas:8091/api/core
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 8. BFF WEB (Portal Web Financiero - Vistas y Reportes Completos)
+  # -------------------------------------------------------------
+  bff-web:
+    build: ./bff-web
+    container_name: bff-web
+    ports:
+      - "8085:8085"
+    depends_on:
+      - config-server
+      - discovery-server
+      - ms-cuentas
+      - ms-clientes
+    environment:
+      - SERVER_PORT=8085
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - BANK_CORE_URL=http://ms-cuentas:8091/api/core
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 10. BATCH SERVICE (Migracion de Procesos Legacy con Spring Batch)
+  # -------------------------------------------------------------
+  batch-service:
+    build: ./batch-service
+    container_name: batch-service
+    ports:
+      - "8086:8086"
+    depends_on:
+      - config-server
+      - discovery-server
+      - mysql
+    environment:
+      - SERVER_PORT=8086
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 11. MS-CUENTAS (Microservicio Gestion de Cuentas)
+  # -------------------------------------------------------------
+  ms-cuentas:
+    build: ./ms-cuentas
+    container_name: ms-cuentas
+    ports:
+      - "8091:8091"
+    depends_on:
+      - config-server
+      - discovery-server
+      - auth-server
+      - mysql
+    environment:
+      - SERVER_PORT=8091
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - AUTH_SERVER_JWKS_URI=http://auth-server:8080/.well-known/jwks.json
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 12. MS-PAGOS (Microservicio Procesamiento de Pagos y Transacciones)
+  # -------------------------------------------------------------
+  ms-pagos:
+    build: ./ms-pagos
+    container_name: ms-pagos
+    ports:
+      - "8092:8092"
+    depends_on:
+      - config-server
+      - discovery-server
+      - auth-server
+      - activemq
+      - mysql
+    environment:
+      - SERVER_PORT=8092
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - SPRING_ACTIVEMQ_BROKER_URL=tcp://activemq:61616
+      - AUTH_SERVER_JWKS_URI=http://auth-server:8080/.well-known/jwks.json
+    networks:
+      - banco-net
+
+  # -------------------------------------------------------------
+  # 13. MS-CLIENTES (Microservicio Gestion de Clientes)
+  # -------------------------------------------------------------
+  ms-clientes:
+    build: ./ms-clientes
+    container_name: ms-clientes
+    ports:
+      - "8093:8093"
+    depends_on:
+      - config-server
+      - discovery-server
+      - auth-server
+      - mysql
+    environment:
+      - SERVER_PORT=8093
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - AUTH_SERVER_JWKS_URI=http://auth-server:8080/.well-known/jwks.json
     networks:
       - banco-net
 
