@@ -4,10 +4,8 @@
 
 ---
 
-* **Asignatura:** Desarrollo Backend III (PBY2203)
-* **Profesor:** Marcelo Zepeda  
-* **Estudiantes:** Leonardo Bustamante — Carolina Delgado  
-* **Institución:** Duoc UC  
+* **Asignatura:** Desarrollo Backend III 
+* **Estudiantes:** Leonardo Bustamante
 * **Fecha:** Octubre 2026  
 * **Repositorio de Código:** [README.md](file:///C:/Users/kk638/Desktop/Exp3_S8_Grupo3-main/README.md)
 
@@ -59,9 +57,9 @@ Para resolver estas limitaciones operativas, el Banco XYZ ha implementado una ar
 ```mermaid
 flowchart TD
     subgraph Canales ["Canales Clientes (Frontends Heterogéneos)"]
-        WebClient["🖥️ Portal Web Financiero"]
-        MobileClient["📱 Aplicación Móvil Android/iOS"]
-        AtmClient["🏧 Red Cajeros Automáticos (ATM)"]
+        WebClient["Portal Web Financiero"]
+        MobileClient["Aplicación Móvil Android/iOS"]
+        AtmClient["Red Cajeros Automáticos (ATM)"]
     end
 
     subgraph CapaBFF ["Capa Backend for Frontend (BFF) - HTTPS / JWT"]
@@ -71,22 +69,22 @@ flowchart TD
     end
 
     subgraph Infraestructura ["Infraestructura Spring Cloud & Seguridad"]
-        ConfigServer["⚙️ Config Server (:8888)<br>Repositorio config-repo centralizado"]
-        Eureka["🔍 Discovery Server (:8761)<br>Netflix Eureka Service Registry"]
-        AuthServer["🔐 Auth Server (:8080)<br>OAuth2 GitHub + JWT RSA (JWKS)"]
-        MySQL["🗄️ MySQL 8.0 (:3306)<br>Database bancoxyz"]
+        ConfigServer["Config Server (:8888)<br>Repositorio config-repo centralizado"]
+        Eureka["Discovery Server (:8761)<br>Netflix Eureka Service Registry"]
+        AuthServer["Auth Server (:8080)<br>OAuth2 GitHub + JWT RSA (JWKS)"]
+        MySQL["MySQL 8.0 (:3306)<br>Database bancoxyz"]
     end
 
     subgraph NucleoNegocio ["Capa de Microservicios Resilientes & Eventos"]
-        MsCuentas["💳 MS Cuentas (:8091)<br>• Cuentas (Apertura, Cierre, Saldo)"]
-        MsPagos["💸 MS Pagos (:8092)<br>• Pagos, Transferencias, Saga<br>• Publicador JMS + CircuitBreaker"]
-        MsClientes["👤 MS Clientes (:8093)<br>• Perfiles y Datos Clientes"]
-        ActiveMQ["📨 Apache ActiveMQ Classic (:61616)<br>Cola persistente: transacciones.bancarias"]
-        MsMensajeria["🔔 MS Mensajería (:8082)<br>@JmsListener Consumidor asíncrono"]
+        MsCuentas["MS Cuentas (:8091)<br>• Cuentas (Apertura, Cierre, Saldo)"]
+        MsPagos["MS Pagos (:8092)<br>• Pagos, Transferencias, Saga<br>• Publicador JMS + CircuitBreaker"]
+        MsClientes["MS Clientes (:8093)<br>• Perfiles y Datos Clientes"]
+        ActiveMQ["Apache ActiveMQ Classic (:61616)<br>Cola persistente: transacciones.bancarias"]
+        MsMensajeria["MS Mensajería (:8082)<br>@JmsListener Consumidor asíncrono"]
     end
 
     subgraph CapaBatch ["Capa de Procesamiento Masivo"]
-        BatchService["⚡ Spring Batch Service (:8086)<br>• Reporte Diario (Anomalías)<br>• Cálculo Intereses Mensuales<br>• Estados Cuenta Anuales (Auditoría)<br>• Chunk 50 / Retry 3 / Skip Auditoría"]
+        BatchService["Spring Batch Service (:8086)<br>• Reporte Diario (Anomalías)<br>• Cálculo Intereses Mensuales<br>• Estados Cuenta Anuales (Auditoría)<br>• Chunk 50 / Retry 3 / Skip Auditoría"]
     end
 
     WebClient -->|HTTPS / JWT Web| BffWeb
@@ -168,23 +166,37 @@ Para eliminar el cuello de botella que significaba exponer un backend único a c
 
 #### Análisis de Acoplamiento y Cohesión de los BFFs
 - **Acoplamiento Débil:** Los BFFs no comparten base de datos ni modelos de dominio con el core bancario. Consumen las APIs REST del Core mediante `RestClient` optimizado (`CoreClient.java`).
-- **Seguridad Inter-Servicios:** `core-service` valida las peticiones internas mediante el filtro `ApiKeyFilter` verificando la cabecera `X-Internal-Api-Key: SecretCoreKeyBancoXYZ2026`, o bien tokens JWT OAuth2.
-- **Tolerancia a Fallos en Canal Móvil:** Si `core-service` experimenta latencia o caída, el Circuit Breaker de `bff-movil` salta a estado abierto y activa `fallbackObtenerResumenMovil`, devolviendo un estado en modo contingencia ("Servicio operando en modo degradado por contingencia del Core Bancario") sin colapsar la app móvil.
+- **Seguridad Inter-Servicios:** `ms-cuentas`, `ms-pagos` y `ms-clientes` validan las peticiones internas mediante el filtro `ApiKeyFilter` verificando la cabecera `X-Internal-Api-Key: SecretCoreKeyBancoXYZ2026`, o bien tokens JWT OAuth2.
+- **Tolerancia a Fallos en Canal Móvil:** Si `ms-cuentas` o `ms-pagos` experimentan latencia o caída, el Circuit Breaker de `bff-movil` salta a estado abierto y activa `fallbackObtenerResumenMovil`, devolviendo un estado en modo contingencia ("Servicio operando en modo degradado por contingencia del Core Bancario") sin colapsar la app móvil.
 
 ---
 
 ### 3.3. Parte 3: Microservicios Resilientes con Spring Cloud
 
-#### A. Microservicio Core Bancario (`core-service`)
-Provee las capacidades transaccionales esenciales estructuradas en tres dominios:
-- **Gestión de Cuentas:** Apertura de cuentas (`POST /api/core/cuentas`), consulta detallada y listar (`GET /api/core/cuentas/{id}`), mantenimiento de límites (`PUT /api/core/cuentas/{id}`) y cierre programado (`DELETE /api/core/cuentas/{id}`).
-- **Procesamiento de Pagos:** Retiros bancarios (`POST /api/core/operaciones/retiro`), transferencias entre cuentas (`POST /api/core/operaciones/transferencia`) y abonos o depósitos (`POST /api/core/operaciones/deposito`).
-- **Gestión de Clientes:** Consulta de clientes (`GET /api/core/clientes`), perfil individual (`GET /api/core/clientes/{id}`) y actualización de perfil (`PUT /api/core/clientes/{id}`).
-- **Pool de Conexiones HikariCP:** Pool calibrado con 10 conexiones máximas, 5 mínimas inactivas, validación contra filtración de sockets y métricas JMX/Actuator.
+#### A. Microservicios de Dominio Bancario (`ms-cuentas`, `ms-pagos`, `ms-clientes`)
+
+El antiguo backend monolítico (`core-service`) fue formalmente reemplazado por tres microservicios independientes, cada uno con su propio `pom.xml`, `Dockerfile`, configuración en `config-repo` y registro autónomo en Eureka:
+
+**MS Cuentas (`ms-cuentas` — Puerto 8091):**
+Maneja el ciclo de vida completo de las cuentas bancarias:
+- Apertura de cuentas (`POST /api/core/cuentas`), consulta detallada (`GET /api/core/cuentas/{id}`), listar todas (`GET /api/core/cuentas`), actualización de límites (`PUT /api/core/cuentas/{id}`) y cierre programado (`DELETE /api/core/cuentas/{id}`).
+- Pool de Conexiones HikariCP calibrado con 10 conexiones máximas y 5 mínimas inactivas.
+
+**MS Pagos (`ms-pagos` — Puerto 8092):**
+Procesa las operaciones financieras transaccionales:
+- Retiros bancarios (`POST /api/core/operaciones/retiro`), transferencias entre cuentas con Patrón Saga (`POST /api/core/operaciones/transferencia`) y depósitos (`POST /api/core/operaciones/deposito`).
+- Publicación de eventos transaccionales asíncronos hacia Apache ActiveMQ.
+- Circuit Breaker Resilience4j ante indisponibilidad del broker de mensajería.
+
+**MS Clientes (`ms-clientes` — Puerto 8093):**
+Administra la información de los cuentahabientes:
+- Consulta de clientes (`GET /api/core/clientes`), perfil individual (`GET /api/core/clientes/{id}`) y actualización de perfil (`PUT /api/core/clientes/{id}`).
+
+**Seguridad compartida:** Los tres microservicios validan peticiones internas mediante el filtro `ApiKeyFilter` (`X-Internal-Api-Key: SecretCoreKeyBancoXYZ2026`) y tokens JWT OAuth2 emitidos por `auth-server`.
 
 #### B. Configuración Centralizada (`config-server`)
 - Escucha en el puerto `8888` bajo autenticación básica (`admin:gato`).
-- Almacena en `config-repo` los archivos de propiedades centralizados: `core-service.properties`, `auth_server.properties`, `ms-mensajeria.properties`, `bff-web.properties`, `bff-movil.properties`, `bff-cajero.properties` y `batch-service.properties`.
+- Almacena en `config-repo` los archivos de propiedades centralizados: `ms-cuentas.properties`, `ms-pagos.properties`, `ms-clientes.properties`, `auth_server.properties`, `ms-mensajeria.properties`, `bff-web.properties`, `bff-movil.properties`, `bff-cajero.properties` y `batch-service.properties`.
 - Soporta perfiles nativos multi-ubicación (`file:./config-repo`, `file:./config-server/config-repo`), garantizando arranque transparente tanto en contenedores Docker como en entornos locales.
 
 #### C. Detección Dinámica de Servicios (`discovery-server`)
@@ -308,68 +320,7 @@ sequenceDiagram
 
 ---
 
-## 5. Diseño de Despliegue en la Nube (AWS Cloud Architecture)
-
-Para el despliegue productivo del Banco XYZ en Amazon Web Services (AWS), se ha diseñado una arquitectura basada en el marco de buena arquitectura (AWS Well-Architected Framework):
-
-```mermaid
-flowchart TD
-    subgraph Internet ["Zona Pública (Internet)"]
-        UserClients["Clientes Web / Móvil / Cajeros"]
-        Route53["Amazon Route 53 (DNS / Latency Routing)"]
-        WAF["AWS WAF (Web Application Firewall)"]
-        ALB["Application Load Balancer (ALB) - TLS Termination"]
-    end
-
-    subgraph VPC ["AWS Virtual Private Cloud (10.0.0.0/16)"]
-        subgraph PublicSubnets ["Subredes Públicas (DMZ)"]
-            NAT["NAT Gateways (Multi-AZ)"]
-        end
-
-        subgraph PrivateSubnetsBFF ["Subredes Privadas: Capa BFF"]
-            FargateBFF["Amazon ECS Fargate (BFF Web, Móvil, Cajero)"]
-        end
-
-        subgraph PrivateSubnetsCore ["Subredes Privadas: Capa Core & Batch"]
-            FargateCore["Amazon ECS Fargate (Core Service, Batch Service, MS Mensajería)"]
-            ConfigEureka["ECS Fargate (Config Server, Discovery Server, Auth Server)"]
-            AmazonMQ["Amazon MQ (Apache ActiveMQ Gestionado Multi-AZ)"]
-        end
-
-        subgraph DatabaseSubnets ["Subredes Privadas: Persistencia"]
-            Aurora["Amazon RDS Aurora PostgreSQL (Multi-AZ Multi-Master)"]
-            S3["Amazon S3 (Archivos Batch & Auditoría)"]
-            Secrets["AWS Secrets Manager / Parameter Store"]
-        end
-    end
-
-    subgraph Observabilidad ["Observabilidad y Monitoreo"]
-        CloudWatch["Amazon CloudWatch (Logs, Metrics, Alarms)"]
-        XRay["AWS X-Ray (Distributed Tracing)"]
-    end
-
-    UserClients --> Route53
-    Route53 --> WAF
-    WAF --> ALB
-    ALB --> FargateBFF
-    FargateBFF --> FargateCore
-    FargateCore --> AmazonMQ
-    FargateCore --> Aurora
-    FargateCore --> ConfigEureka
-    FargateCore --> S3
-```
-
-### Componentes Clave en AWS:
-1. **Cómputo en Contenedores (Amazon ECS Fargate):** Despliegue serverless de los contenedores Docker generados, eliminando la gestión de servidores EC2 y permitiendo auto-escalado horizontal basado en utilización de CPU y solicitudes HTTP concurrentes.
-2. **Base de Datos Relacional (Amazon RDS Aurora PostgreSQL):** Reemplazo de los esquemas locales por una base de datos distribuida relacional con réplicas de lectura automáticas y cifrado en reposo con AWS KMS.
-3. **Broker de Mensajería Administrado (Amazon MQ):** Servicio gestionado de Apache ActiveMQ con conmutación por error activa-en-espera (Active/Standby Multi-AZ), compatible 100% con los converters JMS y `@JmsListener` implementados.
-4. **Almacenamiento de Ingesta Batch (Amazon S3):** Depósito seguro para los archivos de entrada y salida de Spring Batch (`movimientos_financieros_diarios.csv`, reportes de auditoría generados), con políticas de retención y cifrado SSE-S3.
-5. **Seguridad y Secretos (AWS Secrets Manager):** Inyección segura de credenciales de base de datos, llaves privadas RSA y tokens de GitHub sin hardcoding en archivos properties.
-6. **Observabilidad (Amazon CloudWatch & AWS X-Ray):** Monitoreo centralizado de métricas de Spring Actuator (`/actuator/health`, `/actuator/circuitbreakers`) y trazabilidad distribuida de peticiones entre BFFs y el Core Bancario.
-
----
-
-## 6. Desafíos Enfrentados y Soluciones Implementadas
+## 5. Desafíos Enfrentados y Soluciones Implementadas
 
 1. **Desafío: Inconsistencia y Malformaciones en Datos Legacy (CSV)**
    - *Problema:* Los datos provistos por el sistema mainframe contenían registros con transacciones en valores negativos, campos nulos y tipos de cuenta con sintaxis dispar.
@@ -380,39 +331,9 @@ flowchart TD
    - *Solución:* Se desacopló la jerarquía de herencia. Cada microservicio cuenta ahora con su propio POM independiente que hereda directamente de `spring-boot-starter-parent`. El archivo raíz `pom.xml` se redefinió como un agregador opcional para orquestación de compilaciones generales.
 
 3. **Desafío: Colisiones de Puertos al Integrar los Proyectos de BFF**
-   - *Problema:* Los BFFs provenían de un proyecto en paralelo donde usaban puertos locales que colisionaban con `core-service` (8081) y `ms-mensajeria` (8082).
+   - *Problema:* Los BFFs provenían de un proyecto en paralelo donde usaban puertos locales que colisionaban con los microservicios de dominio (`ms-cuentas`: 8091, `ms-pagos`: 8092, `ms-clientes`: 8093) y `ms-mensajeria` (8082).
    - *Solución:* Se estableció una matriz ordenada y sin colisiones: Cajero (`8083`), Móvil (`8084`), Web (`8085`), y Batch (`8086`), estandarizando variables de entorno tanto para ejecución local como contenerizada.
 
 4. **Desafío: Resiliencia de Mensajería ante Indisponibilidad de Red**
    - *Problema:* Si el broker ActiveMQ se saturaba o desconectaba, las operaciones transaccionales del cliente final corrían riesgo de fallar con error HTTP 500.
    - *Solución:* Se integró un Circuit Breaker con Resilience4j en `PublicadorTransacciones`. Tras fallar la publicación por 3 intentos, el circuito se abre y desvía la transacción hacia una lista de contingencia local, garantizando que el usuario obtenga una respuesta contable exitosa y protegiendo el negocio financiero.
-
----
-
-## 7. Propuestas de Mejora y Próximos Pasos
-
-1. **Implementación de API Gateway Cloud (Spring Cloud Gateway / AWS API Gateway):**
-   Incorporar un gateway único para el enrutamiento exterior, centralizando el control de rate-limiting (protección anti-DDoS), CORS y la terminación SSL previa a los BFFs.
-2. **Evolución del Patrón Saga a Coreografía con Apache Kafka:**
-   Habiendo consolidado exitosamente el **Patrón Saga Orquestado** en `core-service` con transacciones de compensación automáticas, el siguiente paso evolutivo para transferencias multi-entidad bancaria (red LBTR / Cámara de Compensación ACH) es incorporar Apache Kafka o Amazon MSK para implementar Sagas de tipo Coreografía Basada en Eventos.
-3. **Migración del Almacenamiento Local de Batch a AWS S3:**
-   Sustituir la lectura desde el sistema de archivos local por lectores de Spring Batch que lean directamente de buckets cifrados en Amazon S3 mediante streaming con `S3Resource`.
-4. **Implementación de Trazabilidad Distribuida con OpenTelemetry y Micrometer Tracing:**
-   Propagar IDs de correlación (`TraceId` y `SpanId`) a través de las cabeceras HTTP entre los BFFs y el Core, permitiendo visualizar flujos completos en grafanas y AWS CloudWatch ServiceLens.
-
----
-
-## 8. Guía Estructurada para la Grabación del Video de Presentación (5 a 7 Minutos)
-
-Para cumplir con la entrega requerida mediante la plataforma **Kaltura** (duración de 5 a 7 minutos, con webcam visible y compartición de pantalla), se propone la siguiente estructura cronometrada:
-
-| Minuto | Sección | Contenido a Presentar frente a Cámara y Pantalla |
-| :--- | :--- | :--- |
-| **0:00 - 1:00** | **1. Resumen Ejecutivo** | Presentación personal del estudiante con webcam. Exponer el contexto del Banco XYZ: 30 años en el mercado, limitaciones del mainframe COBOL (altos costos, rigidez, falta de escalabilidad) y el objetivo de modernizar la infraestructura a microservicios Cloud con Spring Cloud, Spring Batch, BFF y el Patrón Saga Orquestado. |
-| **1:00 - 2:15** | **2. Resultados Obtenidos & Comparación Legacy** | Mostrar en pantalla el diagrama de arquitectura y la ejecución de los servicios. Destacar la migración con Spring Batch (mostrar los 3 jobs pasando en verde: transacciones diarias, cálculo de intereses y estados de cuenta para auditoría). Comparar con el sistema legacy: procesamiento en chunks vs caídas masivas, escalabilidad horizontal vs mainframe vertical. |
-| **2:15 - 3:30** | **3. Demostración Práctica del Patrón BFF & Microservicios** | Mostrar el funcionamiento de los 3 BFFs: BFF Web (dashboard completo en puerto 8085), BFF Móvil (payload ligero y resiliencia en puerto 8084), y BFF Cajero (retiros múltiplos de $5.000 con PIN en puerto 8083). Destacar el registro dinámico en Eureka (`:8761`) y la centralización de propiedades en Config Server (`:8888`). |
-| **3:30 - 4:30** | **4. Demostración del Patrón Saga & Compensación** | Mostrar en Postman o terminal una transferencia con Saga ejecutando la llamada con `simularFalloDestino: true`. Enseñar el estado `COMPENSADA`, la bitácora de reversa automática de fondos y la publicación del evento en ActiveMQ. Destacar cómo esto evita el uso del problemático Two-Phase Commit (2PC). |
-| **4:30 - 5:15** | **5. Desafíos Enfrentados y Soluciones** | Explicar los desafíos resueltos: desacoplamiento de Maven para dejar microservicios 100% autónomos, resolución de puertos, saneamiento de anomalías en datos legacy con Spring Batch, y tolerancia a fallos con Resilience4j tanto en el BFF móvil como en el broker ActiveMQ. |
-| **5:15 - 6:00** | **6. Propuestas de Mejora y Cierre** | Describir los próximos pasos para producción en AWS: despliegue en ECS Fargate con Amazon MQ y RDS Aurora, incorporación de un API Gateway y automatización de pipelines CI/CD. Conclusión y despedida formal. |
-
----

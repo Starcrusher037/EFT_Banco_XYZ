@@ -3,10 +3,8 @@
 
 ---
 
-* **Asignatura:** Desarrollo Backend III (PBY2203)
-* **Profesor:** Marcelo Zepeda  
-* **Estudiantes:** Leonardo Bustamante — Carolina Delgado  
-* **Institución:** Duoc UC  
+* **Asignatura:** Desarrollo Backend III
+* **Estudiantes:** Leonardo Bustamante   
 * **Fecha:** Octubre 2026  
 * **Informe Técnico Detallado:** [PROPUESTA_TECNICA.md](file:///C:/Users/kk638/Desktop/Exp3_S8_Grupo3-main/PROPUESTA_TECNICA.md)
 
@@ -77,9 +75,9 @@ Para superar estos desafíos operacionales, se ha diseñado e implementado una a
 ```mermaid
 flowchart TD
     subgraph Clientes ["Canales Frontends Heterogéneos"]
-        WebUser["🖥️ Navegador Web (Ejecutivos / Clientes)"]
-        MobileUser["📱 Teléfono Inteligente (App Móvil)"]
-        AtmUser["🏧 Terminal Físico de Autoservicio (ATM)"]
+        WebUser["Navegador Web (Ejecutivos / Clientes)"]
+        MobileUser["Teléfono Inteligente (App Móvil)"]
+        AtmUser["Terminal Físico de Autoservicio (ATM)"]
     end
 
     subgraph CapaBFF ["Capa Backend for Frontend (BFF) - HTTPS / JWT"]
@@ -89,22 +87,22 @@ flowchart TD
     end
 
     subgraph InfraEcosistema ["Infraestructura Spring Cloud & Seguridad"]
-        ConfigServer["⚙️ Config Server (:8888)<br>Repositorio config-repo"]
-        Eureka["🔍 Discovery Server (:8761)<br>Netflix Eureka Registry"]
-        AuthServer["🔐 Auth Server (:8080)<br>OAuth2 GitHub + JWKS RSA"]
-        MySQL["🗄️ MySQL 8.0 (:3306)<br>Database bancoxyz"]
+        ConfigServer["Config Server (:8888)<br>Repositorio config-repo"]
+        Eureka["Discovery Server (:8761)<br>Netflix Eureka Registry"]
+        AuthServer["Auth Server (:8080)<br>OAuth2 GitHub + JWKS RSA"]
+        MySQL["MySQL 8.0 (:3306)<br>Database bancoxyz"]
     end
 
     subgraph NucleoTransaccional ["Capa de Microservicios Resilientes"]
-        MsCuentas["💳 MS Cuentas (:8091)<br>Apertura, Saldo, Cierre"]
-        MsPagos["💸 MS Pagos (:8092)<br>Transferencias, Giros, Saga"]
-        MsClientes["👤 MS Clientes (:8093)<br>Perfiles y Datos"]
-        ActiveMQ["📨 Apache ActiveMQ Classic (:61616)<br>Cola: transacciones.bancarias"]
-        MsMensajeria["🔔 MS Mensajería (:8082)<br>@JmsListener Auditoría"]
+        MsCuentas["MS Cuentas (:8091)<br>Apertura, Saldo, Cierre"]
+        MsPagos["MS Pagos (:8092)<br>Transferencias, Giros, Saga"]
+        MsClientes["MS Clientes (:8093)<br>Perfiles y Datos"]
+        ActiveMQ["Apache ActiveMQ Classic (:61616)<br>Cola: transacciones.bancarias"]
+        MsMensajeria["MS Mensajería (:8082)<br>@JmsListener Auditoría"]
     end
 
     subgraph ProcesamientoMasivo ["Capa de Procesamiento Masivo"]
-        BatchService["⚡ Spring Batch Service (:8086)<br>• Reporte Diario (Anomalías)<br>• Cálculo Intereses Mensuales<br>• Estados Cuenta Anuales (Auditoría)<br>• Chunk 50 / Retry 3 / Skip Auditoría"]
+        BatchService["Spring Batch Service (:8086)<br>• Reporte Diario (Anomalías)<br>• Cálculo Intereses Mensuales<br>• Estados Cuenta Anuales (Auditoría)<br>• Chunk 50 / Retry 3 / Skip Auditoría"]
     end
 
     WebUser -->|HTTPS / JWT Web| BffWeb
@@ -145,6 +143,7 @@ El repositorio está estructurado para garantizar la **independencia total** de 
 
 ```text
 Exp3_S8_Grupo3-main/
+├── pom.xml                             # POM Agregador para compilación global con un solo comando
 ├── docker-compose.yml                  # Orquestación de servicios en red banco-net
 ├── .env.example                        # Variables de entorno de despliegue
 ├── README.md                           # Documentación técnica integral
@@ -216,9 +215,12 @@ Exp3_S8_Grupo3-main/
 
 ---
 
-## 5. Independencia Total de Microservicios (Sin POM Padre)
+## 5. Arquitectura Maven y Autonomía de Microservicios
 
-Cada microservicio declara directamente su propio `<parent>` a `spring-boot-starter-parent` en su archivo `pom.xml` local. Son proyectos 100% autónomos y desacoplados: puedes mover cualquier carpeta a otra ubicación o servidor y compilar/ejecutar directamente:
+Cada microservicio declara directamente su propio `<parent>` a `spring-boot-starter-parent` en su archivo `pom.xml` local. Son proyectos **100% autónomos y desacoplados**: no dependen jerárquicamente de un POM padre.
+A nivel raíz, el archivo `pom.xml` actúa exclusivamente como **POM Agregador / Reactor**, lo que permite:
+1. **Compilar y empaquetar toda la plataforma completa en un único comando** (`mvn clean package -DskipTests`).
+2. **O bien gestionar, compilar y ejecutar cualquier microservicio de forma 100% individual y aislada**.
 
 ```bash
 # Compilar y empaquetar un microservicio de forma 100% individual
@@ -231,21 +233,155 @@ mvn spring-boot:run
 
 ---
 
-## 6. Guía de Ejecución y Pruebas Operativas
+## 6. Guía de Ejecución y Despliegue de la Plataforma
 
-### 6.1. Ejecución con Docker Compose (Recomendado)
+Para levantar la solución completa existen **dos modalidades de ejecución**:
+
+---
+
+### 6.1. Opción 1: Despliegue en un Solo Comando (Docker Compose Orquestado)
+
+Esta es la modalidad recomendada para iniciar toda la plataforma con sus 13 servicios (MySQL, ActiveMQ, Spring Cloud, Microservicios Core, BFFs y Spring Batch) de manera automatizada.
+
+> [!IMPORTANT]
+> **Precondición Indispensable:**  
+> Los `Dockerfile` de cada microservicio empaquetan el binario `.jar` compilado (`COPY target/*.jar app.jar`). Por lo tanto, antes de ejecutar `docker compose up --build -d`, es obligatorio generar los archivos `.jar`. Con el POM agregador en la raíz, esto se realiza con un único comando:
 
 ```bash
-# Iniciar todos los contenedores compilando las imágenes Docker
+# Paso 1: Compilar y empaquetar todos los microservicios en un solo comando (desde la raíz)
+mvn clean package -DskipTests
+
+# Paso 2: Iniciar y orquestar todos los contenedores en segundo plano
 docker compose up --build -d
 
-# Verificar estado de los contenedores
+# Paso 3: Verificar el estado de salud de todos los contenedores
 docker compose ps
+
+# Paso 4: (Opcional) Inspeccionar logs consolidados o por servicio
+docker compose logs -f
+# o para un servicio específico: docker compose logs -f ms-cuentas
+
+# Detener todos los contenedores cuando sea necesario
+docker compose down
 ```
 
 ---
 
-### 6.2. Verificación de Spring Batch (`batch-service` - :8086)
+### 6.2. Opción 2: Despliegue Servicio por Servicio (1 a 1 en Orden de Dependencias)
+
+Si se requiere iniciar los servicios de forma individual (ya sea ejecutándolos localmente con `mvn spring-boot:run` o levantando contenedores Docker uno a uno), **es fundamental respetar el orden estricto de dependencias arquitectónicas**:
+
+```mermaid
+flowchart TD
+    Fase1["Fase 1: Infraestructura Base<br>1. MySQL (:3306)<br>2. ActiveMQ (:61616 / :8161)"]
+    Fase2["Fase 2: Infraestructura Spring Cloud<br>3. config-server (:8888)<br>4. discovery-server Eureka (:8761)<br>5. auth-server OAuth2/JWKS (:8080)"]
+    Fase3["Fase 3: Microservicios Core de Negocio<br>6. ms-cuentas (:8091)<br>7. ms-clientes (:8093)<br>8. ms-pagos (:8092)<br>9. ms-mensajeria (:8082)"]
+    Fase4["Fase 4: Canales BFF y Procesamiento Masivo<br>10. bff-cajero (:8083 HTTPS)<br>11. bff-movil (:8084 HTTPS)<br>12. bff-web (:8085 HTTPS)<br>13. batch-service (:8086)"]
+
+    Fase1 --> Fase2
+    Fase2 --> Fase3
+    Fase3 --> Fase4
+```
+
+#### Secuencia Detallada de Ejecución:
+
+#### Fase 1: Infraestructura Base (Persistencia y Mensajería)
+Los microservicios requieren que el motor de base de datos relacional y el broker JMS estén operativos antes de conectarse.
+```bash
+# Levantar únicamente MySQL y ActiveMQ con Docker:
+docker compose up -d mysql activemq
+```
+*Verificación:* MySQL disponible en `localhost:3306` y consola ActiveMQ en `http://localhost:8161` (`admin:admin`).
+
+#### Fase 2: Infraestructura Spring Cloud y Seguridad
+Deben arrancarse en este orden exacto (esperando ~15 segundos entre cada uno para su completa estabilización):
+1. **`config-server` (Puerto 8888):** Provee la configuración centralizada al resto de los microservicios.
+   ```bash
+   cd config-server
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build config-server
+   ```
+2. **`discovery-server` (Puerto 8761):** Eureka Service Registry. Permite el registro dinámico de componentes.
+   ```bash
+   cd ../discovery-server
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build discovery-server
+   ```
+3. **`auth-server` (Puerto 8080):** Servidor OAuth2 y proveedor de claves públicas JWKS RSA (`/.well-known/jwks.json`).
+   ```bash
+   cd ../auth-server
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build auth-server
+   ```
+
+#### Fase 3: Microservicios Core de Negocio y Consumo Asíncrono
+Con la infraestructura base y de descubrimiento operativa, levantar los microservicios transaccionales:
+1. **`ms-cuentas` (Puerto 8091):** Gestión de cuentas, saldos y movimientos.
+   ```bash
+   cd ../ms-cuentas
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build ms-cuentas
+   ```
+2. **`ms-clientes` (Puerto 8093):** Gestión de clientes, perfiles y datos personales.
+   ```bash
+   cd ../ms-clientes
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build ms-clientes
+   ```
+3. **`ms-pagos` (Puerto 8092):** Procesamiento de giros, transferencias, Saga y publicación a ActiveMQ.
+   ```bash
+   cd ../ms-pagos
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build ms-pagos
+   ```
+4. **`ms-mensajeria` (Puerto 8082):** Consumidor asíncrono `@JmsListener` sobre colas de ActiveMQ.
+   ```bash
+   cd ../ms-mensajeria
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build ms-mensajeria
+   ```
+
+#### Fase 4: Capa BFF (Backend for Frontend) y Procesamiento Batch
+Finalmente, se levantan los BFF especializados por canal y el procesador masivo por lotes:
+1. **`bff-cajero` (Puerto 8083 HTTPS):** Canal ATM (se comunica con `ms-cuentas` y `ms-pagos`).
+   ```bash
+   cd ../bff-cajero
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build bff-cajero
+   ```
+2. **`bff-movil` (Puerto 8084 HTTPS):** Canal Móvil con Circuit Breaker (se comunica con `ms-cuentas` y `ms-pagos`).
+   ```bash
+   cd ../bff-movil
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build bff-movil
+   ```
+3. **`bff-web` (Puerto 8085 HTTPS):** Portal Web gerencial y cliente (se comunica con `ms-cuentas` y `ms-clientes`).
+   ```bash
+   cd ../bff-web
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build bff-web
+   ```
+4. **`batch-service` (Puerto 8086):** Procesos Batch de reportes, cálculo de intereses y estados de cuenta (requiere MySQL).
+   ```bash
+   cd ../batch-service
+   mvn clean package -DskipTests
+   mvn spring-boot:run
+   # Alternativa Docker: docker compose up -d --build batch-service
+   ```
+
+---
+
+### 6.3. Verificación de Spring Batch (`batch-service` - :8086)
 
 El microservicio expone endpoints REST para lanzar y auditar los jobs de procesamiento masivo legacy:
 
@@ -287,7 +423,7 @@ curl -X GET http://localhost:8086/api/batch/jobs/resumen
 
 ---
 
-### 6.3. Verificación de los Canales BFF
+### 6.4. Verificación de los Canales BFF
 
 Cada BFF corre sobre **HTTPS** con certificados digitales y maneja su propia seguridad por canal:
 
@@ -351,7 +487,7 @@ Cada BFF corre sobre **HTTPS** con certificados digitales y maneja su propia seg
 
 ---
 
-### 6.4. Verificación de Microservicios Desacoplados, Eventos y Resiliencia
+### 6.5. Verificación de Microservicios Desacoplados, Eventos y Resiliencia
 
 #### A. Registro en Eureka Discovery Server
 Acceder a la consola web en [http://localhost:8761](http://localhost:8761) con usuario `eureka` y contraseña `eureka2026`. Se observarán registrados los microservicios autónomos:
@@ -389,7 +525,7 @@ curl -X GET http://localhost:8092/api/core/mensajeria/contingencias \
 
 ---
 
-### 6.5. Demostración y Pruebas del Patrón Saga (Consistencia Eventual & Compensación Automática)
+### 6.6. Demostración y Pruebas del Patrón Saga (Consistencia Eventual & Compensación Automática)
 
 > [!NOTE]
 > **¿Qué es el Patrón Saga en palabras simples?**  
@@ -488,32 +624,3 @@ curl -k -X POST https://localhost:8084/api/v1/movil/cuentas/101/transferencia-sa
     "simularFalloDestino": false
   }'
 ```
-
----
-
-## 7. Guía para el Video de Presentación (5 a 7 Minutos)
-
-Para la entrega grabada en video (formato MP4 mediante **Kaltura**, con webcam visible y pantalla compartida), seguir esta pauta estructurada:
-
-1. **Resumen Ejecutivo (Minuto 0:00 - 1:00):**  
-   - Presentación personal con cámara web.
-   - Contexto del Banco XYZ: 30 años en el mercado, limitaciones del mainframe legacy COBOL y scripts Shell/JCL.
-   - Objetivos del proyecto: modernización a microservicios Cloud, migración de procesos batch con Spring Batch, adopción del patrón Backend for Frontend (BFF) e implementación del **Patrón Saga Orquestado**.
-2. **Resultados Obtenidos y Comparación Legacy (Minuto 1:00 - 2:30):**  
-   - Mostrar arquitectura en pantalla y la ejecución de los 3 jobs en `batch-service` pasando con 0 errores (`COMPLETED`).
-   - Comparación: procesamiento por chunks de 50 ítems y políticas de skip/retry vs caídas masivas en mainframe; disponibilidad 24/7 vs apagado nocturno para correr lotes.
-3. **Demostración del Patrón BFF & Microservicios (Minuto 2:30 - 3:45):**  
-   - Mostrar consola de Eureka con los 7 microservicios registrados.
-   - Mostrar peticiones a BFF Web (datos completos y dashboard), BFF Móvil (payload ligero y circuit breaker) y BFF Cajero (retiro múltiplos de $5.000 con PIN).
-4. **Demostración Práctica del Patrón Saga (Minuto 3:45 - 4:45):**  
-   - Ejecutar la llamada con `"simularFalloDestino": true` en Postman/cURL para mostrar en vivo la **Transacción de Compensación**: destacar el estado `COMPENSADA` y cómo la bitácora devolvió los fondos automáticamente a la cuenta de origen.
-5. **Desafíos Enfrentados y Soluciones (Minuto 4:45 - 5:30):**  
-   - Desacoplamiento del modelo multimódulo Maven para dejar microservicios 100% independientes sin dependencia de POM padre.
-   - Saneamiento de datos malformados en los archivos CSV legacy con Spring Batch.
-   - Resiliencia con Resilience4j en mensajería ActiveMQ y canal móvil.
-6. **Propuestas de Mejora y Cierre (Minuto 5:30 - 6:00):**  
-   - Despliegue en AWS ECS Fargate, Amazon MQ y RDS Aurora.
-   - Incorporación de API Gateway unificado y automatización CI/CD con GitHub Actions.
-   - Despedida y cierre.
-
----
