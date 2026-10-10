@@ -125,7 +125,7 @@ flowchart TD
 
 ### 3.1. Parte 1: Migración de Procesos Batch con Spring Batch
 
-El microservicio `batch-service` (puerto 8086) reemplaza los antiguos programas COBOL nocturnos y scripts Shell/JCL. Utiliza Spring Boot 3.2.5 con Spring Batch y base de datos relacional H2 persistente para el repositorio de metadatos (`JobRepository`).
+El microservicio `batch-service` (puerto 8086) reemplaza los antiguos programas COBOL nocturnos y scripts Shell/JCL. Utiliza Spring Boot 3.2.5 con Spring Batch y base de datos relacional MySQL 8.0 (`bancoxyz`) tanto para el repositorio de metadatos (`JobRepository`) como para las tablas de salida y auditoría.
 
 #### Procesos Batch Implementados
 

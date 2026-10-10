@@ -68,7 +68,7 @@ Para superar estos desafíos operacionales, se ha diseñado e implementado una a
 | **`bff-cajero`** | BFF Cajero Automático ATM | `8083` | **HTTPS** (Keystore PKCS12) + JWT Cajero |
 | **`bff-movil`** | BFF Aplicación Bancaria Móvil (**Saga Client + Circuit Breaker**) | `8084` | **HTTPS** (Keystore PKCS12) + JWT Móvil + CB |
 | **`bff-web`** | BFF Portal Web Financiero | `8085` | **HTTPS** (Keystore PKCS12) + JWT Web (RBAC) |
-| **`batch-service`** | Procesos Batch (Transacciones, Intereses, Auditoría) | `8086` | HTTP / H2 DB + Persistencia MySQL + Batch |
+| **`batch-service`** | Procesos Batch (Transacciones, Intereses, Auditoría) | `8086` | HTTP / MySQL 8.0 + Spring Batch Metadata |
 
 ---
 

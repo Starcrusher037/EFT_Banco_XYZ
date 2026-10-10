@@ -176,6 +176,9 @@ services:
       - SERVER_PORT=8086
       - SPRING_CONFIG_IMPORT=optional:configserver:http://admin:gato@config-server:8888
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka:eureka2026@discovery-server:8761/eureka/
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/bancoxyz?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=admin
+      - SPRING_DATASOURCE_PASSWORD=admin
     networks:
       - banco-net
 
